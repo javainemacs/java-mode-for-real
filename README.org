@@ -1,0 +1,18 @@
+* CONCEPT
+
+  Our goal is to make an Emacs mode to edit in Java using only Elisp.
+
+* REASONABLE IDEAS
+
+- [ ] Derivate project from java-mode.
+- [ ] An auxiliar archive in the project folder to list used JARs, in order to create directly our classpath.
+- [ ] The java library preloaded?
+- [ ] "jar tf <path.jar>" to get all classes and packages
+- [ ] "javap -cp <path.jar> package.to.Class" to get all the functions of the class
+- [ ] Once we have all the knowdledge, autocomplete ^^
+
+* NOT-SO-REASONABLE IDEAS (now)
+
+  - Create a tree with all project classes, showing relations and types of each one.
+  - Debugger.
+  - A Java flycheck-like mode.

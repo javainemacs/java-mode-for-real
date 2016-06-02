@@ -4,7 +4,7 @@
 
 * REASONABLE IDEAS
 
-- [ ] Derivate project from java-mode.
+- [ ] Derivate project from java-mode. ([[https://www.gnu.org/software/emacs/manual/html_node/elisp/Derived-Modes.html#Derived-Modes][How to derive from a major mode]])
 - [ ] An auxiliar archive in the project folder to list used JARs, in order to create directly our classpath.
 - [ ] The java library preloaded?
 - [ ] "jar tf <path.jar>" to get all classes and packages

@@ -9,8 +9,13 @@
 - [ ] The java library preloaded?
 - [ ] "jar tf <path.jar>" to get all classes and packages
 - [ ] "javap -cp <path.jar> package.to.Class" to get all the functions of the class
+- [ ] "javac -cp pathjar1;pathjar2 Main.java" to compile? http://www.ntu.edu.sg/home/ehchua/programming/java/j9c_packageclasspath.html
+- [ ] "java -cp .;pathjar1;pathjar2 Main" to execute?
 - [ ] Once we have all the knowdledge, autocomplete ^^
 
+* Links
+- https://github.com/jdee-emacs/jdee/blob/master/jcomplete.el
+- https://github.com/skeeto/emacs-java/blob/master/java-mode-plus.el
 * NOT-SO-REASONABLE IDEAS (now)
 
   - Create a tree with all project classes, showing relations and types of each one.

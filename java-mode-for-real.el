@@ -308,6 +308,14 @@ packages otherwise."
     (jmr--execute-java "/usr/bin/java" (jmr--get-class-package-from-path mainp))))
 
 ;;;###autoload
+(defun jmr-execute-custom-main ()
+  "Execute other main."
+  (interactive)
+  (let ((mainp (jmr--ask-main-file))
+        (default-directory (jmr--get-cfg-path)))
+    (jmr--execute-java "/usr/bin/java" (jmr--get-class-package-from-path mainp))))
+
+;;;###autoload
 (defun jmr-compile-execute ()
   (interactive)
   (let ((mainp (jmr--get-main-file))

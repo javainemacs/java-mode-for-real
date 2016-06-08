@@ -30,12 +30,33 @@
 
 ;;; Code:
 
+(defvar jmr-version "0.1"
+  "JMR version string.")
+
+(require 'json)
+
+(defgroup jmr nil
+  "Java Mode for Real for emacs."
+  :prefix "jmr-"
+  :group 'programming)
+
+;;; CUSTOM
+
+;;; VARIABLES
+
+;;; PRIVATE VARIABLES
+
+(defvar-local jmr-cfg nil
+  "The config for JMR project of the file.")
+;;;
+
 (defun jmr--strip-text-properties (txt)
   "Remove all the text properties from `TXT'."
   (set-text-properties 0 (length txt) nil txt)
   txt)
 
-;; From jdee
+;; From JDEE <3
+
 (defun jmr--import-list ()
   "Build the list of java package declared in the current buffer.
 It mostly scans the buffer for 'import' statements, and return the
@@ -57,38 +78,252 @@ resulting list.  It impliciyly adds the java.lang.* package."
           (setq lst (append lst (list (list "java.lang." "*")))))
       lst)))
 
+
+(defun jmr--filter-fqn (importlist)
+  "Filter all the fully-qualified classnames in the `IMPORTLIST'.
+It uses the knowledge that those classnames are at the beginning of the list,
+so that it can stops at the first package import (with a star `*' at
+the end of the declaration)."
+  (if (not (null importlist))
+      (if (string= "*" (car (cdr (car importlist))))
+          importlist
+        (jmr--filter-fqn (cdr importlist)))))
+
+(defun jmr--valid-java-declaration-at (point varname)
+  "Verify that a `POINT' start a valid java declaration for the `VARNAME' variable."
+  (save-excursion
+    (goto-char point)
+    (if (looking-at (concat "\\([A-Za-z_.]+\\)[ \t\n\r]+" varname "[ \t\n\r]*[;=]"))
+        (match-string 1)
+      nil)))
+
+;;; Find type in variable declarations (not f declarations)
+(defun jmr--declared-type-of (name)
+  "Find in the current buffer the java type of the variable NAME.
+The function returns a string containing the name of the class, or nil
+otherwise.  This function does not give the fully-qualified java class
+name, it just returns the type as it is declared."
+  (interactive)
+  (save-excursion
+    (let (found res pos orgpt resname)
+      (while (and (not found)
+                  (search-backward name nil t))
+        (setq pos (point))
+        (backward-word 1)
+        (setq resname (jmr--valid-java-declaration-at (point) name))
+        (goto-char pos)
+        (forward-char -1)
+        ;; TODO search until function
+        ;; Then search from top class nome until first function
+        (unless (null resname)
+          (setq res resname)
+          (setq found t)))
+      (jmr--strip-text-properties res))))
+
+
+;;; Return a name or list of possible packages of a class.
+(defun jmr--guess-type-of (name)
+  "Guess the fully qualified name of the class NAME, using the import list.
+It returns a string if the fqn was found, or a list of possible
+packages otherwise."
+  (let ((importlist (jmr--import-list)) shortname fullname tmp result)
+    (while (and (not (null importlist)) (null result))
+      (setq tmp (car importlist))
+      (setq shortname (car (cdr tmp)))
+      (setq fullname (concat (car tmp) name))
+      (cond
+       ((string= "*" shortname)
+        (setq result importlist))
+       ((string= name shortname)
+        (setq result fullname))
+       (t
+        (setq importlist (cdr importlist)))))
+    result))
+
 ;; From http://stackoverflow.com/questions/14095189/walk-up-the-directory-tree
 (defun jmr--parent-directory (dir)
   "Go to the parent directory of `DIR' unless it's /."
   (unless (equal "/" dir)
     (file-name-directory (directory-file-name dir))))
 
+;;; JMR code
+
 (defun jmr--find-file-in-heirarchy (current-dir fname)
   "Starting from `CURRENT-DIR', search for a file named `FNAME' upwards through the directory hierarchy."
   (let ((file (concat current-dir fname))
-        (parent (parent-directory (expand-file-name current-dir))))
+        (parent (jmr--parent-directory (expand-file-name current-dir))))
     (if (file-exists-p file)
         file
       (when parent
-        (find-file-in-heirarchy parent fname)))))
+        (jmr--find-file-in-heirarchy parent fname)))))
 
 (defun jmr--check-create-cfg-file ()
   "Check if .jmr.json exists traversing up the tree.  If don't, ask for a directory and create it."
-  (let ((cfgp (jmr--find-file-in-heirarchy (buffer-file-name) ".jmr.json")))
+  (let ((cfgp (jmr--find-file-in-heirarchy (or (buffer-file-name) default-directory) ".jmr.json")))
     (unless cfgp
       ;; .jmr.json don't exist, let's ask to create it!
-      (setq cfgp (concat (file-name-directory (read-directory-name "JMR config file couldn't be found, select directory to create it (recommended: base path of the project)")) ".jmr.json"))
+      (setq cfgp (concat (file-name-directory (read-directory-name "JMR config file couldn't be found, select directory to create it (the base path of the project)")) ".jmr.json"))
       (let ((json-object-type 'plist))
-        (write-region (json-encode '(:jars [])) nil cfgp nil)))
-    cfgp
-    ))
+        (write-region (json-encode '(:jars [] :main "")) nil cfgp nil)))
+    cfgp))
+
+;; thanks to “Pascal J Bourguignon” and “TheFlyingDutchman 〔zzbba…@aol.com〕”. 2010-09-02
+(defun jmr--get-string-from-file (filePath)
+  "Return `FILEPATH''s file content."
+  (with-temp-buffer
+    (insert-file-contents filePath)
+    (buffer-string)))
+
+(defun jmr--get-json-from-file (filepath)
+  "Return `FILEPATH''s file as json."
+  (let* ((filecontent (jmr--get-string-from-file filepath))
+         (json-object-type 'plist)
+         (jdata (ignore-errors (json-read-from-string filecontent))))
+    (unless jdata
+      (message "Error reading JSON config file!"))
+    jdata))
+
+(defun jmr--safe-get (pl n d)
+  "Get from `PL' the `N', if don't exist return `D'."
+  (let ((elem (plist-get pl n)))
+    (if elem elem d)))
 
 (defun jmr--load-cfg-file ()
   "Load JMR config file."
-  (let ((jmrp (jmr--check-create-cfg-file)))
-    (message "Using %s JMR config file." jmrp)
+  (let* ((jmrp (jmr--check-create-cfg-file))
+         (jmrj (jmr--get-json-from-file jmrp)))
+
     ;; TODO Load content from jmrp
-    ))
+    (when jmrj
+      (message "Using %s JMR config file." jmrp)
+      (setq jmr-cfg jmrj))))
+
+(defun jmr--get-cfg-path ()
+  (file-name-directory (jmr--check-create-cfg-file)))
+
+(defun jmr--save-cfg (cfg cfgp)
+  (write-region (json-encode jmr-cfg) nil cfgp nil))
+
+(defun jmr--ask-main-file ()
+  (read-file-name
+   "Choose main file "
+   (buffer-file-name) nil nil nil
+   (lambda (opt)
+     (or
+      (file-accessible-directory-p opt)  ;it's a directory
+      (string= "java" (file-name-extension (downcase opt)))) ;.java
+     )))
+
+(defun jmr--get-main-file ()
+  (let ((main (plist-get jmr-cfg :main)))
+    (when (or (null main)
+              (string= "" main)
+              (not (file-exists-p main))
+              (not (string= "java" (file-name-extension (downcase main)))))
+      (plist-put jmr-cfg :main (jmr--ask-main-file))
+      (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file)))
+    (plist-get jmr-cfg :main)))
+
+(defun jmr--create-classpah ()
+  (cl-reduce
+   (lambda (x y) (concat x (unless (string= "" x) ":") y))
+   (vconcat ["."] (jmr--safe-get jmr-cfg :jars []))
+   :initial-value ""))
+
+;; (defun jmr--execute-javac (javacp javamain)
+;;   (let ((classpath (jmr--create-classpah)))
+;;     (start-file-process "Java Compiler" "javac" javacp "-cp" (concat "\"" classpath "\"") javamain)))
+
+(defun jmr--execute-java (javacp javamain)
+  (let* ((classpath (jmr--create-classpah))
+         (jprocess (start-file-process "Java" "java" javacp "-cp" classpath javamain)))
+    (with-help-window "java"
+      (set-process-sentinel
+       jprocess
+       (lambda (proc event)
+         (switch-to-buffer-other-window (process-buffer proc))
+         (save-restriction
+           (let ((inhibit-read-only t)
+                 (inhibit-point-motion-hooks t))
+             (insert (concat "----------\Execution " event))))
+         (goto-char (point-min)))))))
+
+(defun jmr--get-class-package-from-path (fpath)
+  ;; path - cfgpath, remove .java, sub / for .
+
+  ;; Open file, read package, add class name. Safer?
+  (let (pkn)
+    (setq pkn
+          (with-temp-buffer
+            (insert-file-contents fpath)
+            (goto-char (point-min))
+            (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)+[a-zA-Z0-9]+\\)")
+            (jmr--strip-text-properties (match-string 1))))
+
+    (concat pkn "." (file-name-base fpath))))
+
+;;;###autoload
+(defun jmr-set-main ()
+  "Set main file."
+  (interactive)
+  (plist-put jmr-cfg :main (jmr--ask-main-file))
+  (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file)))
+
+;;;###autoload
+(defun jmr-add-jar ()
+  "Add a jar to the project."
+  (interactive)
+  (message "TODO")
+  ;; Ask for .jar file (check jmr--ask-main-file)
+  ;; Add it to jmr-cfg :jars
+  ;; Save it
+  )
+
+;;;###autoload
+(defun jmr-delete-jar ()
+  "Remove a jar from the project."
+  (interactive)
+  (message "TODO")
+  ;; Print a list with the jars to select (in the mini-buffer?)
+  ;; Remove it from jmr-cfg
+  ;; Save
+  )
+
+;;;###autoload
+(defun jmr-compile ()
+  "Compile current project."
+  (interactive)
+  (let ((mainp (jmr--get-main-file))
+        (prevdd default-directory))
+    (cd (jmr--get-cfg-path))
+    (compile (concat "javac " "-cp \"" (jmr--create-classpah) "\" " mainp))
+    (cd prevdd)))
+
+;;;###autoload
+(defun jmr-execute ()
+  "Execute current project main."
+  (interactive)
+  (let ((mainp (jmr--get-main-file))
+        (default-directory (jmr--get-cfg-path)))
+    (jmr--execute-java "/usr/bin/java" (jmr--get-class-package-from-path mainp))))
+
+;;;###autoload
+(defun jmr-compile-execute ()
+  (interactive)
+  (let ((mainp (jmr--get-main-file))
+        (prevdd default-directory))
+    (cd (jmr--get-cfg-path))
+    (setq compilation-finish-functions
+          (lambda (buffer string)
+            (setq compilation-finish-functions nil)
+            (cond ((not (string-match "error"  (with-current-buffer buffer (buffer-string))))
+                   ;; jmr-cfg is buffer-local
+                   ;; let's load the cfg for this buffer (if json is too long rethink this)
+                   (jmr--load-cfg-file)
+                   (jmr--execute-java "java" (jmr--get-class-package-from-path (jmr--get-main-file)))
+                   (kill-buffer buffer)))))
+    (compile (concat "javac " "-cp \"" (jmr--create-classpah) "\" " mainp))
+    (cd prevdd)))
 
 (derived-mode-init-mode-variables 'jmr-mode)
 (put 'jmr-mode 'derived-mode-parent 'java-mode)

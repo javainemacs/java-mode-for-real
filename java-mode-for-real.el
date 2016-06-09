@@ -164,7 +164,7 @@ packages otherwise."
       ;; .jmr.json don't exist, let's ask to create it!
       (setq cfgp (concat (file-name-directory (read-directory-name "JMR config file couldn't be found, select directory to create it (the base path of the project)")) ".jmr.json"))
       (let ((json-object-type 'plist))
-        (write-region (json-encode '(:jars [] :main "")) nil cfgp nil)))
+        (write-region (json-encode '(:jars [] :main "" :src "")) nil cfgp nil)))
     cfgp))
 
 ;; thanks to “Pascal J Bourguignon” and “TheFlyingDutchman 〔zzbba…@aol.com〕”. 2010-09-02
@@ -201,6 +201,9 @@ packages otherwise."
 (defun jmr--get-cfg-path ()
   (file-name-directory (jmr--check-create-cfg-file)))
 
+(defun jmr--get-src-path ()
+  (or (plist-get jmr-cfg :src) (jmr--get-cfg-path)))
+
 (defun jmr--save-cfg (cfg cfgp)
   (write-region (json-encode jmr-cfg) nil cfgp nil))
 
@@ -213,6 +216,10 @@ packages otherwise."
       (file-accessible-directory-p opt)  ;it's a directory
       (string= "java" (file-name-extension (downcase opt)))) ;.java
      )))
+
+(defun jmr--ask-src-path ()
+  (read-directory-name
+   "Choose SRC base path: "))
 
 (defun jmr--get-main-file ()
   (let ((main (plist-get jmr-cfg :main)))
@@ -257,16 +264,26 @@ packages otherwise."
           (with-temp-buffer
             (insert-file-contents fpath)
             (goto-char (point-min))
-            (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)*[a-zA-Z0-9]+\\)")
-            (jmr--strip-text-properties (match-string 1))))
+            (let ((m ""))
+              (ignore-errors (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)*[a-zA-Z0-9]+\\)"))
+              (setq m (or (ignore-errors (match-string 1)) ""))
+              (setq m (if (string= "" m) "" (concat m ".")))
+              (jmr--strip-text-properties m))))
 
-    (concat pkn "." (file-name-base fpath))))
+    (concat pkn (file-name-base fpath))))
 
 ;;;###autoload
 (defun jmr-set-main ()
   "Set main file."
   (interactive)
   (plist-put jmr-cfg :main (jmr--ask-main-file))
+  (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file)))
+
+;;;###autoload
+(defun jmr-set-src-path ()
+  "Set src path."
+  (interactive)
+  (plist-put jmr-cfg :src (jmr--ask-src-path))
   (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file)))
 
 ;;;###autoload
@@ -278,6 +295,12 @@ packages otherwise."
   ;; Add it to jmr-cfg :jars
   ;; Save it
   )
+
+;;;###autoload
+(defun jmr-list-jars ()
+  "List jar of the project."
+  (interactive)
+  (message "TODO"))
 
 ;;;###autoload
 (defun jmr-delete-jar ()
@@ -295,7 +318,7 @@ packages otherwise."
   (interactive)
   (let ((mainp (jmr--get-main-file))
         (prevdd default-directory))
-    (cd (jmr--get-cfg-path))
+    (cd (jmr--get-src-path))
     (compile (concat "javac " "-cp \"" (jmr--create-classpah) "\" " mainp))
     (cd prevdd)))
 
@@ -304,7 +327,7 @@ packages otherwise."
   "Execute current project main."
   (interactive)
   (let ((mainp (jmr--get-main-file))
-        (default-directory (jmr--get-cfg-path)))
+        (default-directory (jmr--get-src-path)))
     (jmr--execute-java "/usr/bin/java" (jmr--get-class-package-from-path mainp))))
 
 ;;;###autoload
@@ -312,7 +335,7 @@ packages otherwise."
   "Execute other main."
   (interactive)
   (let ((mainp (jmr--ask-main-file))
-        (default-directory (jmr--get-cfg-path)))
+        (default-directory (jmr--get-src-path)))
     (jmr--execute-java "/usr/bin/java" (jmr--get-class-package-from-path mainp))))
 
 ;;;###autoload
@@ -320,7 +343,7 @@ packages otherwise."
   (interactive)
   (let ((mainp (jmr--get-main-file))
         (prevdd default-directory))
-    (cd (jmr--get-cfg-path))
+    (cd (jmr--get-src-path))
     (setq compilation-finish-functions
           (lambda (buffer string)
             (setq compilation-finish-functions nil)

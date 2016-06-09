@@ -257,7 +257,7 @@ packages otherwise."
           (with-temp-buffer
             (insert-file-contents fpath)
             (goto-char (point-min))
-            (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)+[a-zA-Z0-9]+\\)")
+            (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)*[a-zA-Z0-9]+\\)")
             (jmr--strip-text-properties (match-string 1))))
 
     (concat pkn "." (file-name-base fpath))))

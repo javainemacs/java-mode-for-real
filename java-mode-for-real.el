@@ -4,7 +4,7 @@
 ;;
 ;; Version: 0.0.1
 ;; Keywords: java mode programming
-;; Author: Java In Emacs Team (ACM UPM members: Samuel, Pablo, Luis, Ignacio, Cesar, Adrian, Roberto, Miguel)
+;; Author: Java In Emacs Team (ACM UPM members: Samuel, Pablo, Luis, Ignacio, Cesar, Adrian, Roberto, Miguel, Victor)
 ;; URL: http://github.com/javainemacs/java-mode-for-real
 ;; Package-Requires: ((emacs "24.1"))
 

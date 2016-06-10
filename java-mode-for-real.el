@@ -360,20 +360,16 @@ packages otherwise."
 ;;;###autoload
 (defun jmr-compile-execute ()
   (interactive)
-  (let ((mainp (jmr--get-main-file))
-        (prevdd default-directory))
-    (cd (jmr--get-src-path))
-    (setq compilation-finish-functions
-          (lambda (buffer string)
-            (setq compilation-finish-functions nil)
-            (cond ((not (string-match "error"  (with-current-buffer buffer (buffer-string))))
-                   ;; jmr-cfg is buffer-local
-                   ;; let's load the cfg for this buffer (if json is too long rethink this)
-                   (jmr--load-cfg-file)
-                   (jmr--execute-java "java" (jmr--get-class-package-from-path (jmr--get-main-file)))
-                   (kill-buffer buffer)))))
-    (compile (concat "javac " "-cp \"" (jmr--create-classpah) "\" " mainp))
-    (cd prevdd)))
+  (setq compilation-finish-functions
+        (lambda (buffer string)
+          (setq compilation-finish-functions nil)
+          (cond ((not (string-match "error"  (with-current-buffer buffer (buffer-string))))
+                 ;; jmr-cfg is buffer-local
+                 ;; let's load the cfg for this buffer (if json is too long rethink this)
+                 (jmr--load-cfg-file)
+                 (jmr-execute)
+                 (kill-buffer buffer)))))
+  (jmr-compile))
 
 (derived-mode-init-mode-variables 'jmr-mode)
 (put 'jmr-mode 'derived-mode-parent 'java-mode)

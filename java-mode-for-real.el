@@ -34,6 +34,7 @@
   "JMR version string.")
 
 (require 'json)
+(require 'dash)                         ;https://github.com/magnars/dash.el
 
 (defgroup jmr nil
   "Java Mode for Real for emacs."
@@ -321,10 +322,14 @@ packages otherwise."
   "Remove a jar from the project."
   (interactive)
   (message "TODO")
-  ;; Print a list with the jars to select (in the mini-buffer?)
-  ;; Remove it from jmr-cfg
-  ;; Save
-  )
+  (let* ((jarv (plist-get jmr-cfg :jars))
+         (jarl (append jarv nil))
+         (jarp (completing-read "Select a jar file: " jarl)))
+    (plist-put
+     jmr-cfg :jars
+     (vconcat
+      (-filter (lambda (n) (not (equal n jarp))) jarl)))
+    (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file))))
 
 ;;;###autoload
 (defun jmr-compile ()

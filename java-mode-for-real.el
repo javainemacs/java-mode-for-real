@@ -251,6 +251,63 @@ packages otherwise."
 ;;   (let ((classpath (jmr--create-classpah)))
 ;;     (start-file-process "Java Compiler" "javac" javacp "-cp" (concat "\"" classpath "\"") javamain)))
 
+(defvar-local jmr--text-to-send "")
+(defvar-local jmr--javaexec nil)
+(defvar-local jmr--javaexec-proc nil)
+
+(defun jmr--post-self-insert-hook ()
+  (when jmr--javaexec
+    (let ((c (string (preceding-char))))
+      (cond
+       ((equal c (kbd "RET")))
+       (t
+        (setq jmr--text-to-send (concat jmr--text-to-send c)))))))
+
+(add-hook 'post-self-insert-hook 'jmr--post-self-insert-hook)
+
+(defun jmr--execute-java (javacp javamain)
+  ;; TODO: Unique name? now "javaexecution"
+  (let* ((classpath (jmr--create-classpah))
+         (jprocess (start-file-process "Java" "javaexecution" javacp "-cp" classpath javamain)))
+
+    (switch-to-buffer-other-window (process-buffer jprocess))
+    (setq jmr--javaexec t)
+    (setq jmr--javaexec-proc jprocess)
+
+    ;; Handle delete (now only works from the end, handle it right!)
+    (local-set-key (kbd "DEL")
+                   (lambda ()
+                     (interactive)
+                     (setq jmr--text-to-send (if (> (length jmr--text-to-send) 0) (substring jmr--text-to-send 0 -1) ""))
+                     (delete-backward-char 1)))
+
+    ;; Handle enter
+    (local-set-key (kbd "RET")
+                   (lambda ()
+                     (interactive)
+                     (newline)
+                     (let ((text (concat jmr--text-to-send (kbd "RET"))))
+                       (setq jmr--text-to-send "")
+                       (when jmr--javaexec-proc
+                         (process-send-string jmr--javaexec-proc text)))))
+
+    ;; On C-d (process-send-eof jprocess)
+    (local-set-key (kbd "C-d")
+                   (lambda ()
+                     (interactive)
+                     (process-send-eof jmr--javaexec-proc)))
+
+    (set-process-sentinel
+     jprocess
+     (lambda (proc event)
+       (when (equal (buffer-name) (buffer-name (process-buffer proc)))
+         (insert (concat "\n----------\Execution " event))
+         (read-only-mode)
+         (local-unset-key (kbd "RET"))
+         (local-set-key (kbd "q") 'kill-this-buffer)
+         (message "Press \"q\" to close the window."))
+       ))))
+
 (defun jmr--execute-java (javacp javamain)
   (let* ((classpath (jmr--create-classpah))
          (jprocess (start-file-process "Java" "java" javacp "-cp" classpath javamain)))

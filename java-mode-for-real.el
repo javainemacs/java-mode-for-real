@@ -188,6 +188,13 @@ packages otherwise."
   (let ((elem (plist-get pl n)))
     (if elem elem d)))
 
+(defun jmr--contains (list elem)
+  (let ((cont nil))
+    (dolist (x (append list nil))       ;Convert to list
+      (when (equal x elem)
+        (setq cont t)))
+    cont))
+
 (defun jmr--load-cfg-file ()
   "Load JMR config file."
   (let* ((jmrp (jmr--check-create-cfg-file))
@@ -207,15 +214,17 @@ packages otherwise."
 (defun jmr--save-cfg (cfg cfgp)
   (write-region (json-encode jmr-cfg) nil cfgp nil))
 
-(defun jmr--ask-main-file ()
+(defun jmr--ask-for-file (startd msg ext)
   (read-file-name
-   "Choose main file "
-   (buffer-file-name) nil nil nil
+   msg
+   startd nil nil nil
    (lambda (opt)
      (or
       (file-accessible-directory-p opt)  ;it's a directory
-      (string= "java" (file-name-extension (downcase opt)))) ;.java
-     )))
+      (string= ext (file-name-extension (downcase opt)))))))
+
+(defun jmr--ask-main-file ()
+  (jmr--ask-for-file (buffer-file-name) "Choose main file " "java"))
 
 (defun jmr--ask-src-path ()
   (read-directory-name
@@ -227,8 +236,8 @@ packages otherwise."
               (string= "" main)
               (not (file-exists-p main))
               (not (string= "java" (file-name-extension (downcase main)))))
-      (plist-put jmr-cfg :main (jmr--ask-main-file))
-      (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file)))
+      (plist-put jmr-cfg :main (jmr--ask-main-file)))
+    (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file))
     (plist-get jmr-cfg :main)))
 
 (defun jmr--create-classpah ()
@@ -292,9 +301,14 @@ packages otherwise."
   (interactive)
   (message "TODO")
   ;; Ask for .jar file (check jmr--ask-main-file)
-  ;; Add it to jmr-cfg :jars
-  ;; Save it
-  )
+  (let ((jarp (jmr--ask-for-file (jmr--get-src-path) "Choose jar file " "jar"))
+        (jarl (plist-get jmr-cfg :jars)))
+    (unless (jmr--contains jarl jarp)
+      ;; Add it to jmr-cfg :jars
+      (setq jarl (vconcat jarl (vector jarp)))
+      (plist-put jmr-cfg :jars jarl)
+      ;; Save it
+      (jmr--save-cfg jmr-cfg (jmr--check-create-cfg-file)))))
 
 ;;;###autoload
 (defun jmr-list-jars ()

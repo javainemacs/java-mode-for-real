@@ -308,19 +308,19 @@ packages otherwise."
          (message "Press \"q\" to close the window."))
        ))))
 
-(defun jmr--execute-java (javacp javamain)
-  (let* ((classpath (jmr--create-classpah))
-         (jprocess (start-file-process "Java" "java" javacp "-cp" classpath javamain)))
-    (with-help-window "java"
-      (set-process-sentinel
-       jprocess
-       (lambda (proc event)
-         (switch-to-buffer-other-window (process-buffer proc))
-         (save-restriction
-           (let ((inhibit-read-only t)
-                 (inhibit-point-motion-hooks t))
-             (insert (concat "----------\Execution " event))))
-         (goto-char (point-min)))))))
+;; (defun jmr--execute-java (javacp javamain)
+;;   (let* ((classpath (jmr--create-classpah))
+;;          (jprocess (start-file-process "Java" "java" javacp "-cp" classpath javamain)))
+;;     (with-help-window "java"
+;;       (set-process-sentinel
+;;        jprocess
+;;        (lambda (proc event)
+;;          (switch-to-buffer-other-window (process-buffer proc))
+;;          (save-restriction
+;;            (let ((inhibit-read-only t)
+;;                  (inhibit-point-motion-hooks t))
+;;              (insert (concat "----------\Execution " event))))
+;;          (goto-char (point-min)))))))
 
 (defun jmr--get-class-package-from-path (fpath)
   ;; path - cfgpath, remove .java, sub / for .
@@ -357,7 +357,6 @@ packages otherwise."
 (defun jmr-add-jar ()
   "Add a jar to the project."
   (interactive)
-  (message "TODO")
   ;; Ask for .jar file (check jmr--ask-main-file)
   (let ((jarp (jmr--ask-for-file (jmr--get-src-path) "Choose jar file " "jar"))
         (jarl (plist-get jmr-cfg :jars)))
@@ -372,13 +371,18 @@ packages otherwise."
 (defun jmr-list-jars ()
   "List jar of the project."
   (interactive)
-  (message "TODO"))
+  (with-help-window "Jar list"
+    (let ((jarl (append (plist-get jmr-cfg :jars) nil)))
+      (when (= (length jarl) 0)
+        (princ "No jars!"))
+      (-each jarl (lambda (jar)
+                    (princ jar)
+                    (princ "\n"))))))
 
 ;;;###autoload
 (defun jmr-delete-jar ()
   "Remove a jar from the project."
   (interactive)
-  (message "TODO")
   (let* ((jarv (plist-get jmr-cfg :jars))
          (jarl (append jarv nil))
          (jarp (completing-read "Select a jar file: " jarl)))

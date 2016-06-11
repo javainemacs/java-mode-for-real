@@ -90,15 +90,89 @@ the end of the declaration)."
           importlist
         (jmr--filter-fqn (cdr importlist)))))
 
+(defun jmr--is-comment-line ()
+  "Check if the line at current point it's not a comment."
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (and (re-search-forward "//.*$" (line-end-position) t nil) t)))
+
+(defun jmr--in-block-comment ()
+  "Check if the current point it's in a block comment."
+  (save-excursion
+    (let ((startpoint (point))
+          (startbc (re-search-backward "/\\*" nil t nil))
+          (endbc (or (re-search-forward "\\*/" nil t nil) 0)))
+      (and (not (null startbc))  (<= startbc endbc) (< startbc startpoint) (> endbc startpoint)))))
+
 (defun jmr--valid-java-declaration-at (point varname)
   "Verify that a `POINT' start a valid java declaration for the `VARNAME' variable."
   (save-excursion
     (goto-char point)
-    (if (looking-at (concat "\\([A-Za-z_.]+\\)[ \t\n\r]+" varname "[ \t\n\r]*[;=]"))
-        (match-string 1)
+    (if (looking-at (concat "\\([A-Za-z_.][\]\[<>A-Za-z_.0-9]*\\)[ \t\n\r]+" varname "[ \t\n\r]*[;=,)]")) ;With , and ) to handle methods args!
+        (let ((match (match-string 1))
+              (isc (or (jmr--is-comment-line) (jmr--in-block-comment))))
+          (if (or isc (string= match "return")) nil match))
       nil)))
 
-;;; Find type in variable declarations (not f declarations)
+(defconst function-regex "\\(public\\|protected\\|private\\|static\\|final\\|native\\|synchronized\\|abstract\\|transient\\)+\s+[$_<>[:word:]]+\s+[$_[:word:]]+\s*\([^\)]*\)\s*{")
+
+(defun jmr--position-previous-method-definition ()
+  (save-excursion
+    (re-search-backward function-regex nil t nil)))
+
+(defun jmr--position-next-method-definition ()
+  (save-excursion
+    (re-search-forward function-regex nil t nil)))
+
+(defun jmr--declared-type-in-body (name)
+  (save-excursion
+    (let (found res pos orgpt resname (fpos (jmr--position-previous-method-definition)))
+      (while (and (not found)
+                  (re-search-backward (concat "\s" name "[\s;=,)]") nil t)
+                  (> (point) (or fpos 0)))
+        (setq pos (point))
+        ;; (backward-word 1)
+        ;; (search-backward "\s" nil t 1)
+        (re-search-backward "[^\]\[<>A-Za-z_.0-9]" nil t nil)
+        (right-char 1)
+        (setq resname (jmr--valid-java-declaration-at (point) name))
+        (goto-char pos)
+        (forward-char -1)
+        (unless (null resname)
+          (setq res resname)
+          (setq found t)))
+      (jmr--strip-text-properties res))))
+
+(defconst class-regex "\\(public\\|protected\\|private\\|final\\|static\\)+\s+class\s+.+{")
+
+(defun jmr--position-previous-class-definition ()
+  (save-excursion
+    (re-search-backward class-regex nil t nil)))
+
+(defun jmr--declared-type-in-class (name)
+  (save-excursion
+    (let (found res pos orgpt resname fpos
+                (cpos (jmr--position-previous-class-definition)))
+      (goto-char (or cpos 0))
+      (setq fpos (jmr--position-next-method-definition))
+
+      (while (and (not found)
+                  (re-search-forward (concat "\s" name "[\s;=,]") nil t)
+                  (< (point) (or fpos (point-max))))
+        (setq pos (point))
+        (search-backward name nil t 1)
+        (search-backward "\s" nil t 1)
+        (re-search-backward "[^\]\[><A-Za-z_.0-9]" nil t nil)
+        (right-char 1)
+        (setq resname (jmr--valid-java-declaration-at (point) name))
+        (goto-char pos)
+        (forward-char -1)
+        (unless (null resname)
+          (setq res resname)
+          (setq found t)))
+      (jmr--strip-text-properties res))))
+
+;;; Find type in 1) method variables and method parameters. 2) class variables
 (defun jmr--declared-type-of (name)
   "Find in the current buffer the java type of the variable NAME.
 The function returns a string containing the name of the class, or nil
@@ -106,21 +180,9 @@ otherwise.  This function does not give the fully-qualified java class
 name, it just returns the type as it is declared."
   (interactive)
   (save-excursion
-    (let (found res pos orgpt resname)
-      (while (and (not found)
-                  (search-backward name nil t))
-        (setq pos (point))
-        (backward-word 1)
-        (setq resname (jmr--valid-java-declaration-at (point) name))
-        (goto-char pos)
-        (forward-char -1)
-        ;; TODO search until function
-        ;; Then search from top class nome until first function
-        (unless (null resname)
-          (setq res resname)
-          (setq found t)))
-      (jmr--strip-text-properties res))))
-
+    (let ((inbody  (ignore-errors (jmr--declared-type-in-body name)))
+          (inclass (ignore-errors (jmr--declared-type-in-class name))))
+      (or inbody inclass))))
 
 ;;; Return a name or list of possible packages of a class.
 (defun jmr--guess-type-of (name)

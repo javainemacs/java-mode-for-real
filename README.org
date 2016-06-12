@@ -4,13 +4,13 @@
 
 * REASONABLE IDEAS
 
-- [ ] Derivate project from java-mode. ([[https://www.gnu.org/software/emacs/manual/html_node/elisp/Derived-Modes.html#Derived-Modes][How to derive from a major mode]])
-- [ ] An auxiliar archive in the project folder to list used JARs, in order to create directly our classpath.
-- [ ] The java library preloaded?
+- [X] Derivate project from java-mode. ([[https://www.gnu.org/software/emacs/manual/html_node/elisp/Derived-Modes.html#Derived-Modes][How to derive from a major mode]])
+- [X] An auxiliar archive in the project folder to list used JARs, in order to create directly our classpath.
+# - [ ] The java library preloaded?
 - [ ] "jar tf <path.jar>" to get all classes and packages
 - [ ] "javap -cp <path.jar> package.to.Class" to get all the functions of the class
-- [ ] "javac -cp pathjar1;pathjar2 Main.java" to compile? http://www.ntu.edu.sg/home/ehchua/programming/java/j9c_packageclasspath.html
-- [ ] "java -cp .;pathjar1;pathjar2 Main" to execute?
+- [X] "javac -cp pathjar1;pathjar2 Main.java" to compile? http://www.ntu.edu.sg/home/ehchua/programming/java/j9c_packageclasspath.html
+- [X] "java -cp .;pathjar1;pathjar2 Main" to execute?
 - [ ] Once we have all the knowdledge, autocomplete ^^
 
 * Links

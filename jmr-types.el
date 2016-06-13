@@ -143,7 +143,7 @@ packages otherwise."
 
 
 (defun jmr--classpath-to-innerrepr (jarp)
-  (let* ((jar (replace-regexp-in-string "/" "." (replace-regexp-in-string "\.class" "" jarp)))
+  (let* ((jar (replace-regexp-in-string "/" "." (replace-regexp-in-string "\\.class\\'" "" jarp)))
          (n (string-match "[^.]+\\'" jar)))
     (list (substring jar 0 n) (substring jar n))))
 

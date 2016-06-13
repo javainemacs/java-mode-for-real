@@ -38,6 +38,7 @@
 
 (require 'jmr-helper)
 (require 'jmr-config)
+(require 'jmr-types)
 (require 'jmr-exec)
 
 (defgroup jmr nil
@@ -73,6 +74,13 @@
 
 (defvar-local jmr-cfg nil
   "The config for JMR project of the file.")
+
+
+;;;###autoload
+(defun jmr-version ()
+  "Get the version of JMR."
+  (interactive)
+  (message "JMR %s" jmr-version))
 
 ;;; Config API
 ;;;###autoload

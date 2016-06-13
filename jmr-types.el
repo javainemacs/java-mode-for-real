@@ -133,14 +133,51 @@ packages otherwise."
       "String")
      ((jmr--pointer-inside-call)
       ;; TODO?
+      (message "TODO")
       )
      (t
       (let* ((expr (jmr--get-current-expression))
-             (tname (jmr--declared-type-of (jmr--clean-expression expr))))
+             (tname (jmr--traverse-expression-types (jmr--clean-expression expr)))
+             ;; (tname (jmr--declared-type-of (jmr--clean-expression expr)))
+             )
         (when tname
           (message tname)))
       ))))
 
+(defun jmr--traverse-expression-types (expr)
+  (let ((calls (jmr--split-expression-in-call expr))
+        ;; (-map 'jmr--analyze-call-expression calls)
+        actual
+        lastclass)
+    (while (> (length calls) 0)
+      (setq actual (nth 0 calls))
+      (setq calls (cdr calls))
+      (setq lastclass (jmr--analyze-single-expr-type actual lastclass))
+      (when (null lastclass)
+        ;; analyze failed!
+        (setq cdr '())
+        (setq actual nil)))
+    lastclass))
+
+(defun jmr--analyze-single-expr-type (expr &optional class)
+  (when (> (length expr) 0)
+    (cond
+     ((string< "Z" (substring expr 0 1))
+      ;; lowercase -> variable
+      (if (not (null class))
+          (progn
+            ;; Search in class
+            )
+        (progn
+          ;; Search variable
+          (jmr--declared-type-of expr)
+          ))
+      )
+     (t
+      ;; New class, just get the name (we are not type-checking, only type hinting)
+      (substring expr 0 (or (string-match "[^a-zA-Z0-9_-]" expr) (length expr)))))))
+
+;; JAR analyzer
 
 (defun jmr--classpath-to-innerrepr (jarp)
   (let* ((jar (replace-regexp-in-string "/" "." (replace-regexp-in-string "\\.class\\'" "" jarp)))
@@ -163,6 +200,69 @@ packages otherwise."
     (unless (null jars)
       (jmr--jar-out-parse jars)
       )))
+
+;; Javap analyzer
+
+(defun jmr--javap-execute (class &optional private constants)
+  (let* ((classpath (jmr--create-classpah))
+         (private (if private "-p " ""))
+         (constants (if constants "-constants " ""))
+         (shellcmd (concat jmr-javap-path " " private constants " -cp \"" classpath "\" " class))
+         )
+    (ignore-errors (shell-command-to-string shellcmd))))
+
+(defun jmr--analyze-javap-line-var (line)
+  (jmr--clean-expression
+   (replace-regexp-in-string "\\(public\\|protected\\|private\\|final\\|static\\)+\s+" "" line))
+  )
+
+(defun jmr--analyze-javap-line-method (line)
+  ""
+  )
+
+(defun jmr--analyze-javap-line (line)
+  (let ((isf (string-match-p "(" line))) ;If have ( it's a method!
+    (:type
+     (if isf :methods :vars)
+     :value
+     (if isf (jmr--analyze-javap-line-method line) (jmr--analyze-javap-line-var line)))
+    ))
+
+(defun jmr--analyze-class (class)
+  (let ((outj (jmr--javap-execute class)) methodlist (output '(:methods '() :vars '())))
+    (when (and outj (not (string-match-p "^Error:" outj)))
+      (setq methodlist (split-string outj "\n"))
+      (setq methodlist (-drop 2 methodlist))  ;Remove two first lines ("compiled from" and class header")
+      (setq methodlist (-drop-last 1 methodlist))
+      (-each methodlist
+        (lambda (el)
+          (when (and el (plist-get el :type) (plist-get el :value))
+            (plist-put
+             output
+             (plist-get el :type)
+             (append (plist-get output (plist-get el :type)) (list (plist-get el :value)))))
+          ))
+      output
+      )))
+
+(defun jmr--analyze-classes (class)
+  (let ((ops (if (string-match-p "\\." class) class (jmr--guess-type-of class))))
+    (cond
+     ((stringp ops)
+      ;; Exact class
+      (jmr--analyze-class class)
+      )
+     ((listp ops)
+      ;; Options
+      (let (result pack)
+        (while (and (not result) (> (length ops) 0))
+          (setq pack (concat (nth 0 (nth 0 ops)) class))
+          (setq result (jmr--analyze-class pack)) ;First nth for get first possibility, second nth to get package
+          (setq ops (cdr ops)))
+        result)
+      )
+     )
+    ))
 
 (provide 'jmr-types)
 ;;; jmr-types.el ends here

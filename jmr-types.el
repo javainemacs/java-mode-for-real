@@ -133,6 +133,7 @@ packages otherwise."
       "String")
      ((jmr--pointer-inside-call)
       ;; TODO?
+      ;; search-left until first non-balanced parenthesis, same for the right
       (message "TODO")
       )
      (t
@@ -155,7 +156,7 @@ packages otherwise."
       (setq lastclass (jmr--analyze-single-expr-type actual lastclass))
       (when (null lastclass)
         ;; analyze failed!
-        (setq cdr '())
+        (setq cdr (list))
         (setq actual nil)))
     lastclass))
 
@@ -203,47 +204,114 @@ packages otherwise."
 
 ;; Javap analyzer
 
+(defun jmr--validate-type-name (type)
+  (and (string-match-p "^[\]\[<>A-Za-z_.0-9]+\\'" type) t))
+
 (defun jmr--javap-execute (class &optional private constants)
   (let* ((classpath (jmr--create-classpah))
          (private (if private "-p " ""))
          (constants (if constants "-constants " ""))
          (shellcmd (concat jmr-javap-path " " private constants " -cp \"" classpath "\" " class))
-         )
+         (default-directory (jmr--get-src-path)))
     (ignore-errors (shell-command-to-string shellcmd))))
 
 (defun jmr--analyze-javap-line-var (line)
-  (jmr--clean-expression
-   (replace-regexp-in-string "\\(public\\|protected\\|private\\|final\\|static\\)+\s+" "" line))
-  )
-
-(defun jmr--analyze-javap-line-method (line)
-  ""
-  )
-
-(defun jmr--analyze-javap-line (line)
-  (let ((isf (string-match-p "(" line))) ;If have ( it's a method!
-    (:type
-     (if isf :methods :vars)
-     :value
-     (if isf (jmr--analyze-javap-line-method line) (jmr--analyze-javap-line-var line)))
+  (let* ((varexpr
+         (jmr--clean-expression
+          (replace-regexp-in-string "\\(public\\|protected\\|private\\|final\\|static\\)+\s+" "" line)))
+         (splitted (split-string varexpr " "))
+         (type (nth 0 splitted)))
+    (when (jmr--validate-type-name type)
+      (list :name (nth 1 splitted) :type type))
     ))
 
-(defun jmr--analyze-class (class)
-  (let ((outj (jmr--javap-execute class)) methodlist (output '(:methods '() :vars '())))
-    (when (and outj (not (string-match-p "^Error:" outj)))
-      (setq methodlist (split-string outj "\n"))
-      (setq methodlist (-drop 2 methodlist))  ;Remove two first lines ("compiled from" and class header")
-      (setq methodlist (-drop-last 1 methodlist))
-      (-each methodlist
-        (lambda (el)
-          (when (and el (plist-get el :type) (plist-get el :value))
-            (plist-put
-             output
-             (plist-get el :type)
-             (append (plist-get output (plist-get el :type)) (list (plist-get el :value)))))
-          ))
-      output
+(defun jmr--analyze-javap-line-method (line classname)
+  (let (name args returnt thr gener
+        (fexpr
+          (jmr--clean-expression
+           (replace-regexp-in-string "\\(public\\|protected\\|private\\|static\\|final\\|native\\|synchronized\\|abstract\\|transient\\)+\s+" "" line)))
+        (genericr "\\(<\\([A-Za-z0-9,]+\\)>\\)?\s*")
+        (typer "\\([^\s]+\\)\s+")
+        (namer "\\([^(]+\\)")
+        (argsr "(\\([^)]*\\))")
+        (throwsr "\\(\s*throws\s+\\(.+\\)\\)?"))
+    (string-match (concat genericr typer namer argsr throwsr) fexpr)
+    (setq gener (match-string 2 fexpr))              ;Generics(without split in ,)
+    (setq returnt (match-string 3 fexpr))              ;ReturnType
+    (setq name (match-string 4 fexpr))              ;FName
+    (setq args (match-string 5 fexpr))              ;Args(without split in ,)
+    (setq thr (match-string 7 fexpr))              ;Throws
+
+    (list
+     :name
+     name
+     :return
+     returnt
+     :args
+     args
+     :throws
+     thr
+     :generic
+     gener)))
+
+(defun jmr--analyze-javap-line (line classname)
+  (let ((isf (string-match-p "(" line)) ;If have ( it's a method!
+        (isconstructor (string-match-p classname line)) ;If have classname it's a constructor
+        )
+    (if (not isconstructor)             ;Decide later what to do with constructors
+      (list
+       :type
+       (if isf :methods :vars)
+       :value
+       (if isf (jmr--analyze-javap-line-method line classname) (jmr--analyze-javap-line-var line)))
       )))
+
+;; Cache!
+(defvar-local jmr--class-cache nil "")
+
+(defun jmr--class-cache-set (key value)
+  (when (not jmr--class-cache)
+    (setq jmr--class-cache (make-hash-table :test 'equal)))
+  (puthash key value jmr--class-cache))
+
+(defun jmr--class-cache-safe-set (key value)
+  (when (not jmr--class-cache)
+    (setq jmr--class-cache (make-hash-table :test 'equal)))
+
+  (unless (string-match-p (jmr--get-actual-package) key)
+    (jmr--class-cache-set key value)))
+
+(defun jmr--class-cache-get (key &optional dft)
+  (when (not jmr--class-cache)
+    (setq jmr--class-cache (make-hash-table :test 'equal)))
+  (gethash key jmr--class-cache dft))
+
+(defun jmr--analyze-class (class)
+  (if (not (equal (jmr--class-cache-get class 0) 0))
+      (jmr--class-cache-get class)      ;Use let!?
+    (let ((outj (jmr--javap-execute class)) methodlist (output (list :methods (list) :vars (list))))
+      (cond
+       ((or (null outj) (string-match "^Error:" outj))
+        ;; Save error!
+        (jmr--class-cache-safe-set class nil)
+        nil)
+
+       (t
+        (setq methodlist (split-string outj "\n"))
+        ;; Get generic names from class header?
+        (setq methodlist (-drop 2 methodlist))  ;Remove two first lines ("compiled from" and class header")
+        (setq methodlist (-drop-last 2 methodlist))
+        (-each
+            (--map (jmr--analyze-javap-line it class) methodlist)
+          (lambda (el)
+            (when (and el (plist-get el :type) (plist-get el :value))
+              (plist-put
+               output
+               (plist-get el :type)
+               (append (plist-get output (plist-get el :type)) (list (plist-get el :value)))))
+            ))
+        (jmr--class-cache-safe-set class output)
+        output)))))
 
 (defun jmr--analyze-classes (class)
   (let ((ops (if (string-match-p "\\." class) class (jmr--guess-type-of class))))

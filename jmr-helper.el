@@ -49,11 +49,14 @@
 (defun jmr--import-list ()
   "Build the list of java package declared in the current buffer.
 It mostly scans the buffer for 'import' statements, and return the
-resulting list.  It impliciyly adds the java.lang.* package."
+resulting list.  It impliciyly adds the java.lang.* and current.package.* packages."
   (interactive)
   (save-excursion
     (goto-char (point-min))
-    (let (lst first second)
+    (let (lst first second cpackage)
+      (ignore-errors (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)*[a-zA-Z0-9]+\\)"))
+      (setq cpackage (jmr--strip-text-properties (or (ignore-errors (concat (match-string 1) ".")) "")))
+
       (while (not (null
                    (re-search-forward "import[ \t\n\r]+\\(\\([a-zA-Z0-9]+[.]\\)+\\)\\([*]\\|[a-zA-Z0-9]+\\)" nil t) ))
         (setq first (jmr--strip-text-properties (match-string 1)))
@@ -63,8 +66,10 @@ resulting list.  It impliciyly adds the java.lang.* package."
                               (list (list first second))))
           (setq lst (append (list (list first second))
                             lst))))
-      (if (not (member "java.lang.*" lst))
-          (setq lst (append lst (list (list "java.lang." "*")))))
+      (when (not (member (concat cpackage "*") lst))
+        (setq lst (append lst (list (list cpackage "*")))))
+      (when (not (member "java.lang.*" lst))
+        (setq lst (append lst (list (list "java.lang." "*")))))
       lst)))
 
 (defun jmr--filter-fqn (importlist)
@@ -232,7 +237,7 @@ the end of the declaration)."
 ;; Todo analyze call expr, to get the types of the calling and all that shiat :)
 
 (defun jmr--clean-expression-left (s)
-  (if (string-match "\\`[ \t\n\r\.;()<>]+" s)
+  (if (string-match "\\`[ \t\n\r\.;)>]+" s)
       (replace-match "" t t s)
     s))
 
@@ -244,6 +249,13 @@ the end of the declaration)."
 (defun jmr--clean-expression (s)
   (jmr--clean-expression-left (jmr--clean-expression-right s)))
 
+
+(defun jmr--get-actual-package ()
+  (save-excursion
+    (goto-char (point-min))
+    (ignore-errors (re-search-forward "package \\(\\([a-zA-Z0-9]+[.]\\)*[a-zA-Z0-9]+\\)"))
+    (when (match-string 1)
+      (jmr--strip-text-properties (concat (match-string 1) ".")))))
 
 (provide 'jmr-helper)
 ;;; jmr-helper.el ends here

@@ -4,10 +4,10 @@
 
 * REASONABLE IDEAS
 
-- [ ] "jar tf <path.jar>" to get all classes and packages
 - [ ] "javap -cp <path.jar> package.to.Class" to get all the functions of the class
 - [ ] Once we have all the knowdledge, autocomplete ^^
 - [ ] Menus (https://github.com/jdee-emacs/jdee/blob/master/jdee.el#L972)
+- [X] "jar tf <path.jar>" to get all classes and packages
 - [X] Derivate project from java-mode. ([[https://www.gnu.org/software/emacs/manual/html_node/elisp/Derived-Modes.html#Derived-Modes][How to derive from a major mode]])
 - [X] An auxiliar archive in the project folder to list used JARs, in order to create directly our classpath.
 # - [ ] The java library preloaded?

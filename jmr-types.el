@@ -126,21 +126,32 @@ packages otherwise."
 ;;; Creacion, a la izquierda un "new", a la derecha hasta ) o ;
 ;;; Asignacion (hasta = izquierda, derecha hasta ;
 (defun jmr--type-on-pointer ()
-  (interactive)
   (save-excursion
     (cond
      ((jmr--pointer-in-string)
       "String")
      ((jmr--pointer-inside-call)
+      (let (expr tname origp firstp lastp (leftp (jmr--first-unbalanced-left-parenthesys)))
+        (setq origp (point))
+        ;; Do something like exrp-walker but to the left
+        (unless (re-search-backward "[\s]" leftp t nil)
+          (goto-char leftp))
+        (right-char 1)
+        (setq firstp (point))
+        (goto-char origp)
+        (setq lastp (jmr--expr-walker t nil t))
+        (setq expr (jmr--strip-text-properties (buffer-substring firstp lastp)))
+
+        (setq tname (jmr--traverse-expression-types (jmr--clean-expression expr)))
+        (when tname
+          (message tname)))
       ;; TODO?
       ;; search-left until first non-balanced parenthesis, same for the right
-      (message "TODO")
+      ;; (jmr--get-current-expression)
       )
      (t
       (let* ((expr (jmr--get-current-expression))
-             (tname (jmr--traverse-expression-types (jmr--clean-expression expr)))
-             ;; (tname (jmr--declared-type-of (jmr--clean-expression expr)))
-             )
+             (tname (jmr--traverse-expression-types (jmr--clean-expression expr))))
         (when tname
           (message tname)))
       ))))
@@ -156,7 +167,7 @@ packages otherwise."
       (setq lastclass (jmr--analyze-single-expr-type actual lastclass))
       (when (null lastclass)
         ;; analyze failed!
-        (setq cdr (list))
+        (setq calls (list))
         (setq actual nil)))
     lastclass))
 
@@ -166,17 +177,65 @@ packages otherwise."
      ((string< "Z" (substring expr 0 1))
       ;; lowercase -> variable
       (if (not (null class))
-          (progn
-            ;; Search in class
-            )
-        (progn
-          ;; Search variable
-          (jmr--declared-type-of expr)
-          ))
-      )
+          ;; Search in class
+          (jmr--find-property-in-class class expr)
+        ;; Search variable
+        (jmr--try-get-full-classname (jmr--declared-type-in-body expr))))
      (t
       ;; New class, just get the name (we are not type-checking, only type hinting)
-      (substring expr 0 (or (string-match "[^a-zA-Z0-9_-]" expr) (length expr)))))))
+      ;; do the nullClass ?
+      (jmr--try-get-full-classname
+       (substring expr 0 (or (string-match "[^a-zA-Z0-9_-]" expr) (length expr))))))))
+
+(defun jmr--try-get-full-classname (classname)
+  (let ((classes (jmr--analyze-classes classname)))
+    (if (and classes (plist-get classes :classname))
+        (plist-get classes :classname)
+      classname)))
+
+(defun jmr--find-property-in-class (class name)
+  (let ((classinfo (jmr--analyze-classes class))
+        (isf (string-match-p "(" name)))
+    (when classinfo
+      (if isf
+          (let ((methodinf (jmr--find-method-in classinfo name)))
+            (when methodinf
+              (plist-get methodinf :return)))
+        (let ((varinf (jmr--find-variable-in classinfo name)))
+          (when varinf
+            (plist-get varinf :type)))))))
+
+;;; We'll probably have some problems when there are more than one with same number & types (example, java.util.Scanner.next() have implementation returning String and Object
+(defun jmr--find-method-in (classinfo name)
+  (let (fname args nargs mlist)
+    (string-match "^\\([^(]+\\)(\\([^)]*\\)" name)
+    (setq fname (match-string 1 name))
+    (message fname)
+    (setq args (match-string 2 name))
+    (when (stringp args)
+      ;;Remove content of the string
+      (setq args (replace-regexp-in-string "\".+\"" "" args)))
+    (setq nargs (if (null args) 0 (length (split-string args ","))))
+    ;; Analyze every argument, now let's do it only with number of arguments
+    (setq mlist (-filter
+                 (lambda (elem)
+                   (let ((args (or (plist-get elem :args) "")))
+                     (and (equal (plist-get elem :name) fname)
+                          (equal nargs (if (equal "" args) 0 (length (split-string args ",")))))))
+                 (plist-get classinfo :methods)))
+    (when (and mlist (> (length mlist) 0))
+      ;; From now, return the first one
+      (nth 0 mlist))))
+
+(defun jmr--find-variable-in (classinfo name)
+  (let (vlist)
+    (setq vlist
+          (-filter
+           (lambda (elem)
+             (equal (plist-get elem :name) name))
+           (plist-get classinfo :vars)))
+    (when (and vlist (> (length vlist) 0))
+      (nth 0 vlist))))
 
 ;; JAR analyzer
 
@@ -218,7 +277,7 @@ packages otherwise."
 (defun jmr--analyze-javap-line-var (line)
   (let* ((varexpr
          (jmr--clean-expression
-          (replace-regexp-in-string "\\(public\\|protected\\|private\\|final\\|static\\)+\s+" "" line)))
+          (replace-regexp-in-string "\\(public\\|protected\\|private\\|static\\|final\\|native\\|synchronized\\|abstract\\|transient\\)+\s+" "" line)))
          (splitted (split-string varexpr " "))
          (type (nth 0 splitted)))
     (when (jmr--validate-type-name type)
@@ -255,8 +314,8 @@ packages otherwise."
      gener)))
 
 (defun jmr--analyze-javap-line (line classname)
-  (let ((isf (string-match-p "(" line)) ;If have ( it's a method!
-        (isconstructor (string-match-p classname line)) ;If have classname it's a constructor
+  (let ((isf (string-match-p "(" line) ;If have ( it's a method!
+             (isconstructor (string-match-p classname line))) ;If have classname it's a constructor
         )
     (if (not isconstructor)             ;Decide later what to do with constructors
       (list
@@ -289,7 +348,7 @@ packages otherwise."
 (defun jmr--analyze-class (class)
   (if (not (equal (jmr--class-cache-get class 0) 0))
       (jmr--class-cache-get class)      ;Use let!?
-    (let ((outj (jmr--javap-execute class)) methodlist (output (list :methods (list) :vars (list))))
+    (let ((outj (jmr--javap-execute class)) methodlist (output (list :classname class :methods (list) :vars (list))))
       (cond
        ((or (null outj) (string-match "^Error:" outj))
         ;; Save error!
@@ -314,23 +373,20 @@ packages otherwise."
         output)))))
 
 (defun jmr--analyze-classes (class)
-  (let ((ops (if (string-match-p "\\." class) class (jmr--guess-type-of class))))
-    (cond
-     ((stringp ops)
-      ;; Exact class
-      (jmr--analyze-class class)
-      )
-     ((listp ops)
-      ;; Options
-      (let (result pack)
-        (while (and (not result) (> (length ops) 0))
-          (setq pack (concat (nth 0 (nth 0 ops)) class))
-          (setq result (jmr--analyze-class pack)) ;First nth for get first possibility, second nth to get package
-          (setq ops (cdr ops)))
-        result)
-      )
-     )
-    ))
+  (when class
+    (let ((ops (if (string-match-p "\\." class) class (jmr--guess-type-of class))))
+      (cond
+       ((stringp ops)
+        ;; Exact class
+        (jmr--analyze-class ops))
+       ((listp ops)
+        ;; Options
+        (let (result pack)
+          (while (and (not result) (> (length ops) 0))
+            (setq pack (concat (nth 0 (nth 0 ops)) class))
+            (setq result (jmr--analyze-class pack)) ;First nth for get first possibility, second nth to get package
+            (setq ops (cdr ops)))
+          result))))))
 
 (provide 'jmr-types)
 ;;; jmr-types.el ends here

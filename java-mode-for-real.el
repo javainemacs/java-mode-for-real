@@ -181,6 +181,12 @@
                  (kill-buffer buffer)))))
   (jmr-compile))
 
+;; Moar things
+;;;###autoload
+(defun jmr-type-on-pointer ()
+  (interactive)
+  (message "%s" (jmr--type-on-pointer)))
+
 ;;; JMR Mode!
 
 (derived-mode-init-mode-variables 'jmr-mode)

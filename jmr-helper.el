@@ -111,6 +111,31 @@ the end of the declaration)."
 (defun jmr--count-string (str subs)
   (--count (equal str (string it)) (append subs nil)))
 
+(defun jmr--first-unbalanced-left-parenthesys ()
+  (save-excursion
+    (let (done instr nextnotstr elem (leftmax (line-beginning-position)) (pcount 0))
+      (while (and (>= (point) leftmax) (>= pcount 0))
+        (setq elem (string (char-before)))
+        (cond
+         (instr
+          (cond
+           ((and nextnotstr (equal elem "\\"))
+            (setq nextnotstr nil))
+           (nextnotstr
+            (setq nextnotstr nil)
+            (setq instr nil)
+            (right-char 1))
+           ((equal elem "\"")
+            (setq nextnotstr t))))
+         ((equal elem "\"")
+          (setq instr t))
+         ((equal elem ")")
+          (setq pcount (+ pcount 1)))
+         ((equal elem "(")
+          (setq pcount (- pcount 1))))
+        (left-char 1))
+      (point))))
+
 (defun jmr--pointer-in-string ()
   (let ((leftdq (jmr--count-string "\"" (buffer-substring (line-beginning-position) (point))))
         (rightdq (jmr--count-string "\"" (buffer-substring (point) (line-end-position)))))
@@ -134,15 +159,16 @@ the end of the declaration)."
          (leftpclose (jmr--count-string ")" lefts)))
     (- leftpopen leftpclose)))
 
-(defun jmr--expr-walker (&optional first left)
+(defun jmr--expr-walker (&optional first left inside)
   (save-excursion
     (let ((instr (jmr--pointer-in-string))
-          (callcount (jmr--pointer-function-inside-counter))
+          (callcount (if inside 0 (jmr--pointer-function-inside-counter)))
           escape
           done
           (elem (string (following-char)))
           (returnp (point)))
-      (while (and (not done) (>= callcount 0))
+
+      (while (and (not done) (if left (<= callcount 0) (>= callcount 0)))
         (setq returnp (point))
         (cond
          (instr

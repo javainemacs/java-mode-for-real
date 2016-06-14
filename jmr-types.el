@@ -314,8 +314,8 @@ packages otherwise."
      gener)))
 
 (defun jmr--analyze-javap-line (line classname)
-  (let ((isf (string-match-p "(" line) ;If have ( it's a method!
-             (isconstructor (string-match-p classname line))) ;If have classname it's a constructor
+  (let ((isf (string-match-p "(" line)) ;If have ( it's a method!
+        (isconstructor (string-match-p classname line)) ;If have classname it's a constructor
         )
     (if (not isconstructor)             ;Decide later what to do with constructors
       (list

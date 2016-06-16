@@ -1,6 +1,26 @@
 * CONCEPT
 
-  Our goal is to make an Emacs mode to edit in Java using only Elisp.
+  Our goal is to make an Emacs mode to edit not-so-bad in Java using only Elisp.
+* Recommended configuration
+
+Clone this repository and:
+
+#+BEGIN_SRC elisp
+(use-package java-mode-for-real
+  :load-path "~/your/path/to/java-mode-for-real"
+  :mode ("\\.java\\'" . jmr-mode)
+  :bind (:map jmr-mode-map
+              ("C-c C-c" . jmr-compile)
+              ("C-c C-e" . jmr-execute)
+              ("C-c C-r" . jmr-compile-execute)
+              ("C-c C-m" . jmr-set-main)
+              ("C-c C-a" . jmr-add-jar)
+              ("C-c C-d" . jmr-delete-jar)
+              ("C-c C-l" . jmr-list-jars)
+              ("C-c C-t" . jmr-type-on-pointer)))
+#+END_SRC
+
+* How to use it!
 
 * REASONABLE IDEAS
 

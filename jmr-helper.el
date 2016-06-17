@@ -159,6 +159,22 @@ the end of the declaration)."
          (leftpclose (jmr--count-string ")" lefts)))
     (- leftpopen leftpclose)))
 
+(defun jmr--goto-left-expr ()
+  (save-excursion
+    (let ((instr (jmr--pointer-in-string))
+          (callcount (jmr--pointer-function-inside-counter))
+          escape
+          done
+          (elem (string (following-char)))
+          (returnp (point)))
+
+      (while (and (not done) (<= callcount 0))
+        (setq returnp (point))
+        (cond
+         (instr
+
+          ))))))
+
 (defun jmr--expr-walker (&optional first left inside)
   (save-excursion
     (let ((instr (jmr--pointer-in-string))
@@ -205,12 +221,12 @@ the end of the declaration)."
       ;;   (setq returnp (point)))
       returnp)))
 
-;; Error when string inside call :(
+;; Error when space in string inside call :(
 (defun jmr--get-current-expression ()
   (let ((actual (string (following-char))) origp firstp lastp)
     (unless (equal "" actual)
       (setq origp (point))
-      (re-search-backward "[^\]\[><A-Za-z_.0-9()]" nil t nil)
+      (re-search-backward "[^\]\[><A-Za-z_.0-9()\"]" nil t nil)
       (right-char 1)
       (setq firstp (point))
       (goto-char origp)

@@ -40,6 +40,7 @@
 (require 'jmr-config)
 (require 'jmr-types)
 (require 'jmr-exec)
+(require 'jmr-complete)
 
 (defgroup jmr nil
   "Java Mode for Real for emacs."

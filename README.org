@@ -1,6 +1,7 @@
 * CONCEPT
 
   Our goal is to make an Emacs mode to edit not-so-bad in Java using only Elisp.
+
 * Recommended configuration
 
 Clone this repository and:
@@ -19,6 +20,11 @@ Clone this repository and:
               ("C-c C-l" . jmr-list-jars)
               ("C-c C-t" . jmr-type-on-pointer)))
 #+END_SRC
+
+** Dependencies:
+
+- dash
+- s
 
 * How to use it!
 

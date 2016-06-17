@@ -159,21 +159,53 @@ the end of the declaration)."
          (leftpclose (jmr--count-string ")" lefts)))
     (- leftpopen leftpclose)))
 
+(defun jmr--get-expr-since-pointer ()
+  (save-excursion
+    (let ((actual (point))
+          (leftp (jmr--goto-left-expr)))
+      (jmr--strip-text-properties (buffer-substring (+ leftp 1) actual)))))
+
 (defun jmr--goto-left-expr ()
   (save-excursion
     (let ((instr (jmr--pointer-in-string))
-          (callcount (jmr--pointer-function-inside-counter))
+          nextnotstr
+          (callcount 0)
           escape
           done
-          (elem (string (following-char)))
+          (elem (string (preceding-char)))
           (returnp (point)))
 
-      (while (and (not done) (<= callcount 0))
+      (while (and (not done) (>= callcount 0))
         (setq returnp (point))
         (cond
          (instr
+          (cond
+           ((and nextnotstr (equal elem "\\"))
+            (setq nextnotstr nil))
+           (nextnotstr
+            (setq nextnotstr nil)
+            (setq instr nil)
+            (right-char 1))
+           ((equal elem "\"")
+            (setq nextnotstr t))))
+         ((equal elem "\"")
+          (setq instr t))
+         ((equal elem "(")
+          (setq callcount (- callcount 1))
+          (message "%s" callcount))
+         ((equal elem ")")
+          (setq callcount (+ callcount 1)))
+         ((equal elem " ")
+          (right-char 1)
+          (setq done t))
+         ((equal elem "=")
+          (setq done t))
+         ((equal elem "}")
+          (setq done t)))
 
-          ))))))
+        (left-char 1)
+        (setq elem (string (following-char))))
+      returnp)))
 
 (defun jmr--expr-walker (&optional first left inside)
   (save-excursion
@@ -197,7 +229,7 @@ the end of the declaration)."
          ((and first (= callcount 0) (equal elem "."))
           (setq done t))
          ((and first (= callcount 0) (equal elem " "))
-          (setq done t))
+          (setq done t))3
          ((and first (equal elem "="))
           (setq done t))
          ((equal elem "\"")

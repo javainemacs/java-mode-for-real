@@ -345,11 +345,18 @@ packages otherwise."
     (setq jmr--class-cache (make-hash-table :test 'equal)))
   (gethash key jmr--class-cache dft))
 
-(defun jmr--analyze-class (class)
+;; Reorder to save generic type and substitute later, instead of save in the cache one instance per generic use
+(defun jmr--analyze-class (classname)
   ;; Extract generic names in order and clean
-  (if (not (equal (jmr--class-cache-get class 0) 0))
-      (jmr--class-cache-get class)      ;Use let!?
-    (let ((outj (jmr--javap-execute class)) methodlist (output (list :classname class :methods (list) :vars (list))))
+  (if (not (equal (jmr--class-cache-get classname 0) 0))
+      (jmr--class-cache-get classname)      ;Use let!?
+    (let* ((extracted (jmr--extract-generics classname))
+           (class (plist-get extracted :name))
+           (genericnames (plist-get extracted :generics))
+           (outj (jmr--javap-execute class))
+           methodlist
+           genericreplaces
+           (output (list :classname class :generics genericnames :methods (list) :vars (list))))
       (cond
        ((or (null outj) (string-match "^Error:" outj))
         ;; Save error!
@@ -358,8 +365,13 @@ packages otherwise."
 
        (t
         (setq methodlist (split-string outj "\n"))
+        (setq methodlist (-drop 1 methodlist))  ;Remove first lines "compiled from"
+
         ;; Get generic names from class header and generate substitution tables (T -> real.T, U -> real.U)
-        (setq methodlist (-drop 2 methodlist))  ;Remove two first lines ("compiled from" and class header")
+        (setq genericreplaces
+              (-zip (plist-get (jmr--extract-type-class-line (nth 0 methodlist)) :generics) genericnames))
+
+        (setq methodlist (-drop 1 methodlist))  ;Remove class header
         (setq methodlist (-drop-last 2 methodlist))
         (-each
             (--map (jmr--analyze-javap-line it class) methodlist)
@@ -370,7 +382,11 @@ packages otherwise."
                (plist-get el :type)
                (append (plist-get output (plist-get el :type)) (list (plist-get el :value)))))
             ))
+
         ;; Replace generics!
+        (plist-put output :methods (jmr--replace-generics-methods genericreplaces (plist-get output :methods)))
+        (plist-put output :vars (jmr--replace-generics-vars genericreplaces (plist-get output :vars)))
+
         (jmr--class-cache-safe-set class output)
         output)))))
 

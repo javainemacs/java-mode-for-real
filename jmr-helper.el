@@ -324,6 +324,58 @@ the end of the declaration)."
   (jmr--clean-expression-left (jmr--clean-expression-right s)))
 
 
+(defun jmr--extract-generics (typ)
+  (if (string-match "\\(.+\\)<\\([^>]+\\)>" typ)
+      (let ((name (match-string 1 typ))
+            (generics (match-string 2 typ)))
+        (list :name name :generics (-map 's-trim (s-split "," generics))))
+    (list :name typ :generics nil)))
+
+(defun jmr--replace-generics (generics text)
+  (-each
+      generics
+      (lambda (gens)
+        (let ((from (first gens))
+              (to (cdr gens)))
+          (message from)
+          (message to)
+
+          (setq text
+                (replace-regexp-in-string
+                 (concat "\\(^\\|[^a-zA-Z0-9_\\.]\\)\\(" from "\\)\\([^a-zA-Z0-9_\\.]\\|\\'\\)")
+                 to
+                 text
+                 t t 2)))))
+  text)
+
+(defun jmr--replace-generics-methods (generics methods)
+  (-map
+   (lambda (method)
+     (let ((name (plist-get method :name))
+           (ret (plist-get method :return))
+           (args (plist-get method :args))
+           (thr (plist-get method :throws))
+           (gens (plist-get method :generic)))
+       ;; Quit from generics that ones in gens?
+       ;; (setq generics (--filter (not (-contains? gens (first it))) generics))
+
+       (setq ret (jmr--replace-generics generics ret))
+       (setq args (jmr--replace-generics generics args))
+
+       (list :name name :return ret :args args :throws thr :generic gens)))
+   methods))
+
+(defun jmr--replace-generics-vars (generics vars)
+  (-map
+   (lambda (var)
+     (list :name (plist-get var :name) :type (jmr--replace-generics generics (plist-get var :type))))
+   vars))
+
+(defun jmr--extract-type-class-line (line)
+  (when (string-match "\\(class\\|interface\\)\s+\\([a-zA-Z\.0-9_-]+\\)\\(<\\([^>]+\\)>\\)?" line)
+    (list :name (match-string 2 line)
+          :generics (-map 's-trim (--filter (not (equal "" it)) (s-split "," (or (match-string 4 line) "")))))))
+
 (defun jmr--get-actual-package ()
   (save-excursion
     (goto-char (point-min))

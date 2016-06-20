@@ -51,8 +51,9 @@
         (setq pos (point))
         ;; (backward-word 1)
         ;; (search-backward "\s" nil t 1)
-        (re-search-backward "[^\]\[<>A-Za-z_.0-9]" nil t nil)
-        (right-char 1)
+        ;; (re-search-backward "[^\]\[<>A-Za-z_.0-9]" nil t nil)
+        (goto-char (jmr--goto-left-expr))
+        ;; (right-char 1)
         (setq resname (jmr--valid-java-declaration-at (point) name))
         (goto-char pos)
         (forward-char -1)
@@ -80,8 +81,10 @@
         (setq pos (point))
         (search-backward name nil t 1)
         (search-backward "\s" nil t 1)
-        (re-search-backward "[^\]\[><A-Za-z_.0-9]" nil t nil)
-        (right-char 1)
+        ;; (re-search-backward "[^\]\[><A-Za-z_.0-9]" nil t nil)
+        ;; (right-char 1)
+        (goto-char (jmr--goto-left-expr))
+
         (setq resname (jmr--valid-java-declaration-at (point) name))
         (goto-char pos)
         (forward-char -1)
@@ -288,18 +291,23 @@ packages otherwise."
   (let (name args returnt thr gener
         (fexpr
           (jmr--clean-expression
-           (replace-regexp-in-string "\\(public\\|protected\\|private\\|static\\|final\\|native\\|synchronized\\|abstract\\|transient\\)+\s+" "" line)))
-        (genericr "\\(<\\([A-Za-z0-9,]+\\)>\\)?\s*")
-        (typer "\\([^\s]+\\)\s+")
+           (replace-regexp-in-string "\\(public\\|protected\\|private\\|static\\|final\\|native\\|synchronized\\|abstract\\|transient\\)+[ \t\n\r]+" "" line)))
+        ;; (genericr "\\(<\\([A-Za-z0-9,]+\\)>\\)?\s*")
+        (genericr "\\(^<\\([^>]+\\)>\\)?[ \t\n\r]*")
+        (typer "\\(\\([\]\[A-Za-z$_\\.0-9]*\\|<[^>]+>\\)+\\)[ \t\n\r]+")
+        ;; (typer "\\([^\s]+\\)\s+")
         (namer "\\([^(]+\\)")
         (argsr "(\\([^)]*\\))")
-        (throwsr "\\(\s*throws\s+\\(.+\\)\\)?"))
+        (throwsr "\\([ \t\n\r]*throws[ \t\n\r]+\\(.+\\)\\)?"))
     (string-match (concat genericr typer namer argsr throwsr) fexpr)
     (setq gener (match-string 2 fexpr))              ;Generics(without split in ,)
     (setq returnt (match-string 3 fexpr))              ;ReturnType
-    (setq name (match-string 4 fexpr))              ;FName
-    (setq args (match-string 5 fexpr))              ;Args(without split in ,)
-    (setq thr (match-string 7 fexpr))              ;Throws
+    (setq name (match-string 5 fexpr))              ;FName
+    (setq args (match-string 6 fexpr))              ;Args(without split in ,)
+    (setq thr (match-string 8 fexpr))              ;Throws
+    ;; (setq name (match-string 4 fexpr))              ;FName
+    ;; (setq args (match-string 5 fexpr))              ;Args(without split in ,)
+    ;; (setq thr (match-string 7 fexpr))              ;Throws
 
     (list
      :name
@@ -315,7 +323,7 @@ packages otherwise."
 
 (defun jmr--analyze-javap-line (line classname)
   (let ((isf (string-match-p "(" line)) ;If have ( it's a method!
-        (isconstructor (string-match-p classname line)) ;If have classname it's a constructor
+        (isconstructor (string-match-p (concat classname "(") line)) ;If have classname it's a constructor
         )
     (if (not isconstructor)             ;Decide later what to do with constructors
       (list

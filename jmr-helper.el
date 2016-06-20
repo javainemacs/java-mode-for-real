@@ -102,10 +102,12 @@ the end of the declaration)."
   "Verify that a `POINT' start a valid java declaration for the `VARNAME' variable."
   (save-excursion
     (goto-char point)
-    (if (looking-at (concat "\\([A-Za-z_.][\]\[<>A-Za-z_.0-9]*\\)[ \t\n\r]+" varname "[ \t\n\r]*[;=,)]")) ;With , and ) to handle methods args!
+    (if (looking-at (concat "\\(\\([\]\[A-Za-z$_\\.0-9]*\\|<[^>]+>\\)+\\)[ \t\n\r]+" varname "[ \t\n\r]*[;=,)]")) ;With , and ) to handle methods args!
+        ;; (looking-at (concat "\\([A-Za-z_.][\]\[<>A-Za-z_.0-9]*\\)[ \t\n\r]+" varname "[ \t\n\r]*[;=,)]")) ;With , and ) to handle methods args!
+
         (let ((match (match-string 1))
               (isc (or (jmr--is-comment-line) (jmr--in-block-comment))))
-          (if (or isc (string= match "return")) nil match))
+          (if (or isc (string= match "return")) nil (jmr--strip-text-properties match)))
       nil)))
 
 (defun jmr--count-string (str subs)
@@ -163,19 +165,20 @@ the end of the declaration)."
   (save-excursion
     (let ((actual (point))
           (leftp (jmr--goto-left-expr)))
-      (jmr--strip-text-properties (buffer-substring (+ leftp 1) actual)))))
+      (jmr--strip-text-properties (buffer-substring leftp actual)))))
 
 (defun jmr--goto-left-expr ()
   (save-excursion
     (let ((instr (jmr--pointer-in-string))
           nextnotstr
           (callcount 0)
+          (anglecount 0)
           escape
           done
           (elem (string (preceding-char)))
           (returnp (point)))
 
-      (while (and (not done) (>= callcount 0))
+      (while (and (not done) (>= callcount 0) (>= anglecount 0))
         (setq returnp (point))
         (cond
          (instr
@@ -191,20 +194,23 @@ the end of the declaration)."
          ((equal elem "\"")
           (setq instr t))
          ((equal elem "(")
-          (setq callcount (- callcount 1))
-          (message "%s" callcount))
+          (setq callcount (- callcount 1)))
          ((equal elem ")")
           (setq callcount (+ callcount 1)))
-         ((equal elem " ")
-          (right-char 1)
+         ((and (= anglecount 0) (equal elem " "))
+          ;; (right-char 1)
           (setq done t))
+         ((equal elem "<")
+          (setq anglecount (- anglecount 1)))
+         ((equal elem ">")
+          (setq anglecount (+ anglecount 1)))
          ((equal elem "=")
           (setq done t))
          ((equal elem "}")
           (setq done t)))
 
         (left-char 1)
-        (setq elem (string (following-char))))
+        (setq elem (string (preceding-char))))
       returnp)))
 
 (defun jmr--expr-walker (&optional first left inside)

@@ -180,7 +180,7 @@ packages otherwise."
           ;; Search in class
           (jmr--find-property-in-class class expr)
         ;; Search variable
-        (jmr--try-get-full-classname (jmr--declared-type-in-body expr))))
+        (jmr--try-get-full-classname (jmr--declared-type-of expr))))
      (t
       ;; New class, just get the name (we are not type-checking, only type hinting)
       ;; do the nullClass ?
@@ -346,6 +346,7 @@ packages otherwise."
   (gethash key jmr--class-cache dft))
 
 (defun jmr--analyze-class (class)
+  ;; Extract generic names in order and clean
   (if (not (equal (jmr--class-cache-get class 0) 0))
       (jmr--class-cache-get class)      ;Use let!?
     (let ((outj (jmr--javap-execute class)) methodlist (output (list :classname class :methods (list) :vars (list))))
@@ -357,7 +358,7 @@ packages otherwise."
 
        (t
         (setq methodlist (split-string outj "\n"))
-        ;; Get generic names from class header?
+        ;; Get generic names from class header and generate substitution tables (T -> real.T, U -> real.U)
         (setq methodlist (-drop 2 methodlist))  ;Remove two first lines ("compiled from" and class header")
         (setq methodlist (-drop-last 2 methodlist))
         (-each
@@ -369,6 +370,7 @@ packages otherwise."
                (plist-get el :type)
                (append (plist-get output (plist-get el :type)) (list (plist-get el :value)))))
             ))
+        ;; Replace generics!
         (jmr--class-cache-safe-set class output)
         output)))))
 

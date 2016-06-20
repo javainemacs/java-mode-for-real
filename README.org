@@ -30,9 +30,10 @@ Clone this repository and:
 
 * REASONABLE IDEAS
 
-- [ ] "javap -cp <path.jar> package.to.Class" to get all the functions of the class
-- [ ] Once we have all the knowdledge, autocomplete ^^
 - [ ] Menus (https://github.com/jdee-emacs/jdee/blob/master/jdee.el#L972)
+- [ ] Different build tools, integrated, maven, sbt, cbt (build-system plugins?)
+- [x] Once we have all the knowdledge, autocomplete ^^
+- [x] "javap -cp <path.jar> package.to.Class" to get all the functions of the class
 - [X] "jar tf <path.jar>" to get all classes and packages
 - [X] Derivate project from java-mode. ([[https://www.gnu.org/software/emacs/manual/html_node/elisp/Derived-Modes.html#Derived-Modes][How to derive from a major mode]])
 - [X] An auxiliar archive in the project folder to list used JARs, in order to create directly our classpath.
@@ -45,6 +46,6 @@ Clone this repository and:
 - https://github.com/skeeto/emacs-java/blob/master/java-mode-plus.el
 * NOT-SO-REASONABLE IDEAS (now)
 
+  - A Java flycheck-like mode.
   - Create a tree with all project classes, showing relations and types of each one.
   - Debugger.
-  - A Java flycheck-like mode.

@@ -131,7 +131,7 @@
 (ac-clear-variable-every-minute 'jmr--source-cache)
 
 (defun jmr--source-candidates ()
-  (message "HERE")
+  ;; (message "HERE")
   ;; Clean Cache if .
   (when (eq ?. (char-before)) (setq jmr--source-cache nil))
   ;; Add all imported
@@ -146,10 +146,54 @@
 ;; (defun jmr--document (item)
 ;;   (message item))
 
-(defvar ac-source-jmr
+(defun jmr--document (item)
+  ;; (when (stringp item)
+  ;;   (message item)
+  ;;   )
+  nil
+  )
+
+
+;; (defvar ac-source-jmr
+;;   '((candidates . jmr--source-candidates)
+;;     ;; (document . jmr--document)
+;;     ))
+
+(defun jmr--source-action ()
+  (message "ACTION")
+  ;; Iterate through parameters?
+  ;; Remove them or do something like yas?
+  )
+
+(defun jmr--source-start ()
+  ;; (message "START")
+  (or (ac-prefix-symbol)
+      (let ((c (char-before)))
+        (when (or (eq ?\. c)
+                  ;; ->
+                  ;; (and (eq ?> c)
+                  ;;      (eq ?- (char-before (1- (point)))))
+                  ;; ::
+                  ;; (and (eq ?: c)
+                  ;;      (eq ?: (char-before (1- (point)))))
+                  )
+          (point)))))
+
+(ac-define-source jmr
   '((candidates . jmr--source-candidates)
-    ;; (document . jmr--document)
-    ))
+    ;; (action . jmr--source-action) ;; Action is called when "TAB" in option
+    (prefix . jmr--source-start)
+    (requires . 0)
+    (document . jmr--document)
+    ;; (cache)
+    ;; (selection-face . ac-emacs-eclim-selection-face)
+    ;; (candidate-face . ac-emacs-eclim-candidate-face)
+    (symbol . "f")))
+
+(defun ac-jmr-setup ()
+  (add-to-list 'ac-sources 'ac-source-jmr))
+
+;; Save in
 
 ;;;###autoload
 (defun jmr-set-autocomplete ()
@@ -157,7 +201,10 @@
   ;; Check mode == jmr mode
   (if (equal major-mode 'jmr-mode)
       (progn
-        (setq ac-sources '(ac-source-jmr)))
+        (ac-jmr-setup)
+        (add-hook 'jmr-mode-hook 'ac-jmr-setup)
+        ;; (setq ac-sources '(ac-source-jmr))
+        )
     (message "You are not in JMR mode")))
 
 

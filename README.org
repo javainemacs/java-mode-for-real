@@ -47,5 +47,16 @@ Clone this repository and:
 * NOT-SO-REASONABLE IDEAS (now)
 
   - A Java flycheck-like mode.
+
+    Maybe this is not crazy, use flycheck with two optional binaries:
+
+    - findbugs (http://findbugs.sourceforge.net/)
+
+      #+BEGIN_SRC bash
+      /path/bin/findbugs2 -textui -emacs -auxclasspath "classpath:cp" -onlyAnalyze package.to.Class /path/to/src
+      #+END_SRC
+
+    - pmd (https://pmd.github.io/)
+
   - Create a tree with all project classes, showing relations and types of each one.
   - Debugger.

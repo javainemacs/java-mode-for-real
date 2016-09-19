@@ -117,25 +117,13 @@
 (defun jmr-list-jars ()
   "List jar of the project."
   (interactive)
-  (with-help-window "Jar list"
-    (let ((jarl (append (plist-get jmr-cfg :jars) nil)))
-      (when (= (length jarl) 0)
-	  (princ "No jars!"))
-      (-each jarl (lambda (jar)
-                    (princ jar)
-                    (princ "\n"))))))
-
-;;;###autoload
-(defun jmr-list-jars-dev ()
-  "List jar of the project."
-  (interactive)
   (let ((jarl (append (plist-get jmr-cfg :jars) nil)))
-    (if (= (length jarl) 0) 
-	(minibuffer-message "No jars!")
-      ((with-help-window "Jar list")
-       (-each jarl (lambda (jar)
-		     (princ jar)
-		     (princ "\n")))))))
+    (if (= (length jarl) 0)
+        (minibuffer-message "No jars!")
+      (with-help-window "Jar list"
+        (-each jarl (lambda (jar)
+                      (princ jar)
+                      (princ "\n")))))))
 
 ;;;###autoload
 (defun jmr-delete-jar ()

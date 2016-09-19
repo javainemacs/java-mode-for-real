@@ -36,18 +36,18 @@
   (unless (equal "/" dir)
     (file-name-directory (directory-file-name dir))))
 
-(defun jmr--find-file-in-heirarchy (current-dir fname)
+(defun jmr--find-file-in-hierarchy (current-dir fname)
   "Starting from `CURRENT-DIR', search for a file named `FNAME' upwards through the directory hierarchy."
   (let ((file (concat current-dir fname))
         (parent (jmr--parent-directory (expand-file-name current-dir))))
     (if (file-exists-p file)
         file
       (when parent
-        (jmr--find-file-in-heirarchy parent fname)))))
+        (jmr--find-file-in-hierarchy parent fname)))))
 
 (defun jmr--check-create-cfg-file ()
   "Check if .jmr.json exists traversing up the tree.  If don't, ask for a directory and create it."
-  (let ((cfgp (jmr--find-file-in-heirarchy (or (buffer-file-name) default-directory) ".jmr.json")))
+  (let ((cfgp (jmr--find-file-in-hierarchy (or (buffer-file-name) default-directory) ".jmr.json")))
     (unless cfgp
       ;; .jmr.json don't exist, let's ask to create it!
       (setq cfgp (concat (file-name-directory (read-directory-name "JMR config file couldn't be found, select directory to create it (the base path of the project)")) ".jmr.json"))
